@@ -2,7 +2,7 @@
 This is a project for my undergrad Parallel Programming class, written in Rust. The project specification is as follows:
 
 
-Assignment 1
+### Assignment 1
 Write a parallel genetic algorithm program for an Facilities Layout problem in which:
 
 
