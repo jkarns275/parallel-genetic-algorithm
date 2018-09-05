@@ -1,3 +1,5 @@
 /target
 **/*.rs.bk
 /.idea
+parallel-genetic-algorithm.iml
+Cargo.lock

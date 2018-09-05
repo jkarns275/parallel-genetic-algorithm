@@ -23,43 +23,48 @@ pub trait FromRng {
 
 #[derive(Clone)]
 /// A generic representation of a swap - the cell at (fx, fy) should be swapped with (tx, ty).
-struct Swap<T> where T: Into<u64> + Clone + Copy {
-    pub fx: T,
-    pub fy: T,
-    pub tx: T,
-    pub ty: T
+struct Swap<T> where T: Default + Into<u64> + Clone + Copy {
+    pub f: T,
+    pub t: T
 }
 
-impl<T> Swap<T> where T: Into<u64> + Clone + Copy {
-    fn fx(&self) -> usize { self.fx.into() as usize }
-    fn fy(&self) -> usize { self.fy.into() as usize }
-    fn tx(&self) -> usize { self.tx.into() as usize }
-    fn ty(&self) -> usize { self.ty.into() as usize }
+impl<T> Swap<T> where T: Default + Into<u64> + Clone + Copy {
+    pub fn default() -> Self { Swap { f: T::default(), t: T::default() } }
+    pub fn t(&self) -> usize { self.t.into() as usize }
+    pub fn f(&self) -> usize { self.f.into() as usize }
 }
 
 #[derive(Clone)]
 /// A chromosome is just an ordered series of swaps.
-struct Chromosome<T> where T: Into<u64> + TryFrom<u64> + Clone + Copy {
+struct Chromosome<T> where T: Default + Into<u64> + TryFrom<u64> + Clone + Copy {
     pub swaps: Vec<Swap<T>>
 }
 
-impl<T> Chromosome<T> where T: Into<u64> + TryFrom<u64> + Clone + Copy {
-    pub fn new(capacity: usize) -> Self {
-        Chromosome { swaps: Vec::with_capacity(capacity) }
+impl<T> Chromosome<T> where T: Default + Into<u64> + TryFrom<u64> + Clone + Copy {
+
+    /// len is the length of the chromosome and the number of cells in the grid.
+    pub fn new<R: Rng>(len: usize, rng: &mut R) -> Self {
+        let mut ret = Chromosome { swaps: Vec::with_capacity(len) };
+        for _ in 0..len {
+            let t = rng.gen::<u32>() as u64 % len;
+            let f = rng.gen::<u32>() as u64 % len;
+            ret.swaps.push(Swap {   t: t.try_into().unwrap_or(panic!("")),
+                                    f: f.try_into().unwrap_or(panic!("")), });
+        }
+        ret
     }
 
     /// Creates a new random swap and replaces one of the existing one. The replaced Swap and it's
     /// index are returned as a tuple.
     pub fn mutate<R: Rng>(&mut self, rng: &mut R, ncols: T, nrows: T) -> (Swap<T>, usize) {
-        let (tx, ty) = (rng.next_u32() as u64 % ncols.into(), rng.next_u32() as u64 % nrows.into());
-        let (fx, fy) = (rng.next_u32() as u64 % ncols.into(), rng.next_u32() as u64 % nrows.into());
+        let divisor = ncols.into() * nrows.into();
+        let t = rng.gen::<u32>() as u64 % divisor;
+        let f = rng.gen::<u32>() as u64 % divisor;
         let index = rng.gen::<usize>() % self.swaps.len();
         let old_swap = self.swaps[index].clone();
         self.swaps[index] =
-            Swap {  tx: tx.try_into().unwrap_or(panic!("")),
-                    ty: ty.try_into().unwrap_or(panic!("")),
-                    fx: fx.try_into().unwrap_or(panic!("")),
-                    fy: fy.try_into().unwrap_or(panic!("")) };
+            Swap {  t: t.try_into().unwrap_or(panic!("")),
+                    f: f.try_into().unwrap_or(panic!("")), };
         (old_swap, index)
     }
 
@@ -72,7 +77,7 @@ pub struct Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng + Send
     ncols: usize,
     data: Arc<Vec<T>>,
     temp_data: Option<Vec<T>>,
-    dna: Vec<Chromosome<u8>>,
+    dna: Vec<Chromosome<u16>>,
     rng: R
 }
 
@@ -91,16 +96,16 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng + Send
     /// Returns a tuple of (old fitness, new fitness).
     pub fn evolve(&mut self) -> (f64, f64) {
         let old_fitness = self.fitness();
-        let mut new_fitness;
-        loop {
-            let chr_ind = self.rng.gen::<usize>() % self.dna.len();
-            let (swap, ind) = self.dna[chr_ind].mutate(&mut self.rng, self.ncols as u8, self.nrows as u8);
-            new_fitness = self.fitness();
-            if new_fitness > old_fitness { break; }
-            self.dna[chr_ind].restore_mutation(swap, ind);
-        }
 
+        let chr_ind = self.rng.gen::<usize>() % self.dna.len();
+        let (swap, ind) = self.dna[chr_ind].mutate(&mut self.rng, self.ncols as u16, self.nrows as u16);
+
+        let new_fitness = self.fitness();
         (old_fitness, new_fitness)
+    }
+
+    pub fn gen_and_add_chromosome(&mut self) {
+        self.dna.push(Chromosome::new(self.nrows * self.ncols, &mut self.rng));
     }
 
     /// Replace this facility with the child of itself and other using single point crossover.
@@ -111,10 +116,6 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng + Send
             let index = self.rng.gen::<usize>() % modulus;
             self_chr.swaps[index..].clone_from_slice(&other_chr.swaps[index..]);
         }
-    }
-
-    fn cell_at<'a>(&'a self, col: usize, row: usize) -> &'a T {
-        &self.data[col * self.nrows + row]
     }
 
     fn fast_cell_fitness(&self, data: &[T], col: usize, row: usize) -> f64 {
@@ -237,8 +238,9 @@ const N_MUTATIONS: u32 = 16;
 impl<T, R> FacilityWorker<T, R>
     where T: 'static + Affinity + Clone + Send + Sync,
           R: 'static + Rng + SeedableRng + Send + Sync {
-    pub fn new(id: usize, tick_barrier: Arc<Barrier>, done_sender: Sender<()>, ncols: usize,
-               nrows: usize, data_base: Arc<Vec<T>>) -> Self {
+
+    pub fn new(id: usize, nchrs: usize, tick_barrier: Arc<Barrier>, done_sender: Sender<()>,
+               ncols: usize, nrows: usize, data_base: Arc<Vec<T>>) -> Self {
 
         let now = SystemTime::UNIX_EPOCH;
         let seed128 = now.elapsed().unwrap().as_nanos();
@@ -255,7 +257,8 @@ impl<T, R> FacilityWorker<T, R>
                     .clone_from_slice(unsafe { &transmute::<u128, [u8; 16]>(seed128)[..len] });
             }
         }
-        let facility = Arc::new(Mutex::new(Facility::new(ncols, nrows, data_base, R::from_seed(seed))));
+        let facility = Arc::new(Mutex::new(
+            Facility::new(ncols, nrows, data_base, R::from_seed(seed))));
         let should_tick = Arc::new(AtomicBool::new(false));
         let should_terminate = Arc::new(AtomicBool::new(false));
         let fitness_receiver = Arc::new(Mutex::new(None));
@@ -266,7 +269,18 @@ impl<T, R> FacilityWorker<T, R>
             let facility = facility.clone();
 
             thread::spawn(move || {
-                done_sender.send(()); // Count D
+                if let Ok(mut f) = (*facility).lock() {
+                    for _ in 0..nchrs {
+                        f.gen_and_add_chromosome();
+                    }
+                } else {
+                    println!("Failed to obtain facility mutex in thread {}", id);
+                }
+
+
+                // Unwrapping is okay-ish here, since the only time this will fail is when the
+                // main thread has panicked
+                done_sender.send(()).unwrap(); // Count D
                 tick_barrier.wait(); // Sync A
                 loop {
 
@@ -274,7 +288,8 @@ impl<T, R> FacilityWorker<T, R>
                     if let Ok(mut f) = (*facility).lock() {
                         for i in 0..N_MUTATIONS { f.evolve(); }
                     }
-                    done_sender.send(()); // Count C
+                    // Unwrapping here is okay-ish for the same reason as above.
+                    done_sender.send(()).unwrap(); // Count C
                     tick_barrier.wait(); // Sync B
                 }
             })
@@ -286,6 +301,14 @@ impl<T, R> FacilityWorker<T, R>
             thread_handle,
             fitness_receiver,
             id,
+        }
+    }
+
+    pub fn kill(&mut self) -> Result<(), ()> {
+        self.should_terminate.store(true, Ordering::Relaxed);
+        match self.thread_handle.join() {
+            Ok(())  => Ok(()),
+            Err(_)  => Err(())
         }
     }
 }

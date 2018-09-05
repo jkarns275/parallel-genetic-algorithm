@@ -17,8 +17,9 @@ use rand::XorShiftRng;
 fn main() {
     const N_THREADS: usize = 8;
     const N_GENERATIONS: usize = 1024 * 16;
-    const NCOLS: usize = 32;
-    const NROWS: usize = 32;
+    const N_COLS: usize = 32;
+    const N_ROWS: usize = 32;
+    const N_CHRS: usize = 8;
 
     use rand::thread_rng;
     use std::time::SystemTime;
@@ -33,7 +34,8 @@ fn main() {
 
     let barrier = Arc::new(Barrier::new(N_THREADS + 1));
     let workers = (0..N_THREADS).map(|id| {
-        FacilityWorker::<f64, XorShiftRng>::new(id, barrier.clone(), tx.clone(), NCOLS, NROWS, data.clone())
+        FacilityWorker::<f64, XorShiftRng>::new(id, N_CHRS, barrier.clone(), tx.clone(), N_COLS,
+                                                N_ROWS, data.clone())
     }).collect::<Vec<_>>();
 
     let mut counter = 0;
