@@ -47,7 +47,7 @@ fn main() {
     barrier.wait(); // Sync A
 
     for i in 0..N_GENERATIONS {
-        for _ in 0..N_GENS_PER_ITER {
+        for iter in 0..N_GENS_PER_ITER {
             let mut counter = 0;
             // Count C
             while counter < N_THREADS {
@@ -61,9 +61,9 @@ fn main() {
             let mut weights = workers.iter_mut().map(|w| w.get_fitness()).collect::<Vec<_>>();
             // Unstable sort is faster according to rustdocs
             weights.sort_unstable();
-
-            println!("Fitnesses: {:?}", weights);
-
+            if iter == N_GENS_PER_ITER - 1 {
+                println!("Fitnesses: {:?}", weights);
+            }
             // The lowest (first) N_THREADS / 2 will be thrown out. The other half will be selected for
             // breeding randomly. Every facility of the other half will have at least one child.
             let partners = (0..N_THREADS - N_PARENTS)
