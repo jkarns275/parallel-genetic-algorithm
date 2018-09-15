@@ -10,7 +10,7 @@ use std::time::SystemTime;
 use std::mem::transmute;
 use rand::SeedableRng;
 use std::sync::mpsc::Receiver;
-use pancurses::*;
+use pancurses::{self, *};
 
 const CHARSET: [char; 6] = ['-', '~', '#', '$', '!', '█'];
 const COLORS: [i16; 6] = [0, 1, 2, 3, 4, 5];

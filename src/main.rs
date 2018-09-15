@@ -12,6 +12,7 @@ pub mod constants;
 pub mod app;
 
 use app::App;
+use rand::XorShiftRng;
 
 fn main() {
     type Affine = (f64, f64);
