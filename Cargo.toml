@@ -5,3 +5,7 @@ authors = ["Josh Karns <jkarns275@gmail.com>"]
 
 [dependencies]
 rand = "0.5.5"
+
+[dependencies.pancurses]
+version = "0.16"
+features = ["win32"]
