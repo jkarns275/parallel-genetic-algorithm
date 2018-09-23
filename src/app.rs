@@ -78,7 +78,7 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         fn indexof(col: usize, row: usize) -> usize { col * N_ROWS + row }
 
         let aff_to_chclr = |aff: f64| -> (char, i16) {
-            let aff = ((aff / affine_max) * 5.0) as usize;
+            let aff = (aff / affine_max) as usize;
             if aff >= 6 {
                 (CHARSET[5], COLORS[5])
             } else {
@@ -168,7 +168,7 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
     }
 
     pub fn run(mut self) {
-        let affine_max = <T as Affinity>::max() * 4.0;
+        let affine_max = <T as Affinity>::max() * 2 as f64;
 
         self.counter_wait();
         self.barrier.wait(); // Sync A

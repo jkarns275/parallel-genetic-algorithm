@@ -106,6 +106,10 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
     }
 
     fn fast_cell_fitness(&self, data: &[T], col: usize, row: usize) -> f64 {
+        fn manhattan_distance(c1: usize, r1: usize, c2: usize, r2: usize) -> f64 {
+            ((c1 as isize - c2 as isize) as f64).abs() + ((r1 as isize - r2 as isize) as f64).abs()
+        }
+        /*
         debug_assert_ne!(col, 0);
         debug_assert_ne!(col, self.ncols - 1);
         debug_assert_ne!(row, 0);
@@ -115,6 +119,17 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
         let refs = [&data[index], &data[index + nrows], &data[index - nrows], &data[index + 1], &self.data[index - 1]];
         let cell: &T = refs[0];
         refs[1..].iter().map(|other_ref| cell.affinity(other_ref)).sum()
+        */
+        let cell = &data[col * self.nrows + row];
+        let mut sum = 0.0;
+        for r in 0..self.nrows {
+            for c in 0..self.ncols {
+                if c == col && r == row { continue }
+                let md = manhattan_distance(col, row, c, r);
+                sum += cell.affinity(&data[c * self.nrows + r]) / (md * md);
+            }
+        }
+        sum
     }
 
     /// Fitness is calculated by summing the affinity of the four directly-adjacent cells. Since
@@ -160,37 +175,15 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
         let mut fitness_grid = vec![0.0; self.ncols * self.nrows];
 
         {
-            let data = &mut data[..];
+            let data = &data[..];
 
-            for col in 1..self.ncols - 1 {
-                let col_ind = col * self.nrows;
-                for row in 1..self.nrows - 1 {
-                    fitness_grid[col_ind + row] = self.fast_cell_fitness(data, col, row);
+            for r in 0..self.nrows {
+                for c in 0..self.ncols {
+                    fitness_grid[c * self.nrows + r] = self.fast_cell_fitness(data, c, r);
                 }
             }
-
-            // Taking into account the top and bottom row.
-            let mut index = 0;
-            let mut index2 = self.nrows - 1;
-            for col in 0..self.ncols {
-                fitness_grid[index] = self.slow_cell_fitness(data, col, 0);
-                fitness_grid[index2] = self.slow_cell_fitness(data, col, self.nrows - 1);
-                index += self.nrows;
-                index2 += self.nrows;
-            }
-
-            // Taking into account the left and right columns (without the first and last cells of
-            // the row, since they've been accounted for in the above code - we don't want them
-            // to be counted twice).
-            index = 1;
-            index2 = (self.ncols - 1) * self.nrows + 1;
-            for row in 1..self.nrows - 1 {
-                fitness_grid[index] = self.slow_cell_fitness(data, 0, row);
-                fitness_grid[index2] = self.slow_cell_fitness(data, self.ncols - 1, row);
-                index += 1;
-                index2 += 1;
-            }
         }
+
         let _ = self.temp_data.get_or_insert(data);
         let (sum, grid) = (fitness_grid.iter().sum(), fitness_grid);
         match self.original_fitness.clone() {
