@@ -177,7 +177,7 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
     }
 
     pub fn run(mut self) {
-        let affine_max = <T as Affinity>::max() * 4.0;
+        let affine_max = <T as Affinity>::max() * 2 as f64;
 
         self.counter_wait();
         self.barrier.wait(); // Sync A
