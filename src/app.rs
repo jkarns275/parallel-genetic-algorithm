@@ -34,7 +34,15 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         let window = App::<T, R>::init_window();
         let seed = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_nanos();
         let rng = XorShiftRng::from_seed(unsafe { transmute::<u128, [u8; 16]>(seed) });
-        let data = Arc::new(Facility::<T, XorShiftRng>::gen_random_data(N_COLS, N_ROWS, rng));
+        let mut data = Facility::<T, XorShiftRng>::gen_random_data(N_COLS, N_ROWS, rng);
+
+        let seed = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_nanos();
+        let mut rng = XorShiftRng::from_seed(unsafe { transmute::<u128, [u8; 16]>(seed) });
+        for i in 0..N_EMPTY_CELLS {
+            data[rng.gen::<usize>() % (N_COLS * N_ROWS)] = T::empty();
+        }
+
+        let data = Arc::new(data);
         let (count_send, count_recv) = channel::<()>();
         let barrier = Arc::new(Barrier::new(N_THREADS + 1));
         let workers = (0..N_THREADS).map(|id| {
@@ -78,6 +86,7 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         fn indexof(col: usize, row: usize) -> usize { col * N_ROWS + row }
 
         let aff_to_chclr = |aff: f64| -> (char, i16) {
+            if aff.to_bits() == 0 { return (' ', COLORS[0]) }
             let aff = ((aff / affine_max) * 5.0) as usize;
             if aff >= 6 {
                 (CHARSET[5], COLORS[5])
@@ -91,22 +100,22 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
             for col in 0..N_COLS {
                 let (_ch, clr) = aff_to_chclr(max_fitness.grid[indexof(col, row)]);
                 self.window.color_set(clr);
-                self.window.addch('█');
+                self.window.addch('#');
             }
         }
         self.window.color_set(2);
         let df = max_fitness.sum - max_fitness.original;
         if df > 0.0 {
             self.window.printw(
-                format!("\n  Δ fitness:       +{:.3}", max_fitness.sum - max_fitness.original));
+                format!("\n  delta fitness:     +{:.3}", max_fitness.sum - max_fitness.original));
         } else {
             self.window.printw(
-                format!("\n  Δ fitness:       {:.3}", max_fitness.sum - max_fitness.original));
+                format!("\n  delta fitness:     {:.3}", max_fitness.sum - max_fitness.original));
         }
         self.window.printw(
-                format!("\n  actual fitness:  {:.3}", max_fitness.sum));
+                format!("\n  actual fitness:    {:.3}", max_fitness.sum));
         self.window.printw(
-                format!("\n  ms / iter:       {:.3}", self.ms_per_iter));
+                format!("\n  ms / iter:         {:.3}", self.ms_per_iter));
     }
 
     pub fn retrieve_fitnesses(&mut self) -> Vec<Fitness> {

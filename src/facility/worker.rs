@@ -6,7 +6,7 @@ use std::cmp;
 use facility::affinity::Affinity;
 use rand::Rng;
 use rand::SeedableRng;
-use facility::facility::Facility;
+use facility::Facility;
 use std::sync::RwLock;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
