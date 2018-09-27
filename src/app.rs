@@ -72,38 +72,54 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
 
         start_color();
 
-        init_pair(0, COLOR_BLACK,   COLOR_BLACK );
-        init_pair(1, COLOR_RED,     COLOR_BLACK);
-        init_pair(2, COLOR_YELLOW,  COLOR_BLACK);
-        init_pair(3, COLOR_MAGENTA, COLOR_BLACK);
-        init_pair(4, COLOR_CYAN,    COLOR_BLACK);
-        init_pair(5, COLOR_GREEN,   COLOR_BLACK);
+        init_pair(0, COLOR_CYAN,    COLOR_BLACK);
+        init_pair(1, COLOR_RED,     COLOR_RED);
+        init_pair(2, COLOR_YELLOW,  COLOR_YELLOW);
+        init_pair(3, COLOR_MAGENTA, COLOR_MAGENTA);
+        init_pair(4, COLOR_CYAN,    COLOR_CYAN);
+        init_pair(5, COLOR_GREEN,   COLOR_GREEN);
 
         window
     }
 
-    pub fn update_display(&mut self, max_fitness: Fitness, affine_max: f64) {
+    pub fn update_display(&mut self, max_fitness: Fitness<T>, affine_max: f64) {
         fn indexof(col: usize, row: usize) -> usize { col * N_ROWS + row }
 
         let aff_to_chclr = |aff: f64| -> (char, i16) {
             if aff.to_bits() == 0 { return (' ', COLORS[0]) }
-            let aff = ((aff / affine_max) * 5.0) as usize;
+            let aff = ((aff / affine_max) * 0.5) as usize;
             if aff >= 6 {
-                (CHARSET[5], COLORS[5])
+                ('#', COLORS[5])
             } else {
-                (CHARSET[aff], COLORS[aff])
+                (/* CHARSET[aff] */ '#', COLORS[aff])
             }
         };
 
         for row in 0..N_ROWS {
             self.window.mv(row as i32, 0);
             for col in 0..N_COLS {
-                let (_ch, clr) = aff_to_chclr(max_fitness.grid[indexof(col, row)]);
+                let (ch, clr) = aff_to_chclr(max_fitness.grid[indexof(col, row)]);
                 self.window.color_set(clr);
-                self.window.addch('#');
+                self.window.addch(ch);
             }
         }
-        self.window.color_set(2);
+
+        for row in 0..N_ROWS {
+            self.window.mv(row as i32, N_COLS as i32 + 4);
+            for col in 0..N_COLS {
+                let affinity = &max_fitness.layout[indexof(col, row)];
+                let (ch, clr) =
+                    if affinity.is_empty() {
+                        (' ', 0)
+                    } else {
+                        let mag = affinity.magnitude() / T::max();
+                        ('#', (mag * 6.0) as i16 % 6)
+                    };
+                self.window.color_set(clr);
+                self.window.addch(ch);
+            }
+        }
+        self.window.color_set(0);
         let df = max_fitness.sum - max_fitness.original;
         if df > 0.0 {
             self.window.printw(
@@ -118,13 +134,13 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
                 format!("\n  ms / iter:         {:.3}", self.ms_per_iter));
     }
 
-    pub fn retrieve_fitnesses(&mut self) -> Vec<Fitness> {
+    pub fn retrieve_fitnesses(&mut self) -> Vec<Fitness<T>> {
         let mut weights = self.workers.iter_mut().map(|w| w.get_fitness()).collect::<Vec<_>>();
         weights.sort_unstable();
         weights
     }
 
-    pub fn select_parents(&mut self, fitnesses: &mut Vec<Fitness>) {
+    pub fn select_parents(&mut self, fitnesses: &mut Vec<Fitness<T>>) {
         for i in 0..N_THREADS - N_PARENTS {
             let (i, a, b) = (i, N_THREADS - N_PARENTS + (self.rng.gen::<usize>() % N_PARENTS),
                             N_THREADS - N_PARENTS + (self.rng.gen::<usize>() % N_PARENTS));

@@ -112,20 +112,27 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
     }
 
     fn fast_cell_fitness(&self, data: &[T], col: usize, row: usize) -> f64 {
-        debug_assert_ne!(col, 0);
-        debug_assert_ne!(col, self.ncols - 1);
-        debug_assert_ne!(row, 0);
-        debug_assert_ne!(row, self.nrows - 1);
         if data[col * self.nrows + row].is_empty() { return 0.0 }
-        let nrows = self.nrows;
-        let index = nrows * col + row;
-        let refs = [&data[index], &data[index + nrows], &data[index - nrows], &data[index + 1], &self.data[index - 1]];
-        let cell: &T = refs[0];
-        refs[1..].iter().map(|other_ref| cell.affinity(other_ref)).sum()
+
+        fn manhattan_distance(c1: usize, r1: usize, c2: usize, r2: usize) -> f64 {
+            ((c1 as isize - c2 as isize) as f64).abs() + ((r1 as isize - r2 as isize) as f64).abs()
+        }
+
+        let cell = &data[col * self.nrows + row];
+        let mut sum = 0.0;
+        for r in 0..self.nrows {
+            for c in 0..self.ncols {
+                if c == col && r == row { continue }
+                let md = manhattan_distance(col, row, c, r);
+                sum += cell.affinity(&data[c * self.nrows + r]) / (md * md);
+            }
+        }
+        sum
     }
 
-    // Calculates the fitness and returns (original fitness, current fitness, per-cell fitness).
-    pub fn fitness(&mut self) -> (f64, f64, Vec<f64>) {
+    // Calculates the fitness and returns
+    // (original fitness, current fitness, layout, per-cell fitness)
+    pub fn fitness(&mut self) -> (f64, f64, Vec<T>, Vec<f64>) {
         let mut data = self.temp_data.take().unwrap();
         data.clone_from_slice(&self.data[..]);
         for chromosome in self.dna.iter() {
@@ -149,15 +156,16 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
             }
         }
 
+        let layout = data.clone();
         let _ = self.temp_data.get_or_insert(data);
         let (sum, grid) = (fitness_grid.iter().sum(), fitness_grid);
         match self.original_fitness.clone() {
             None => {
                 let _ = self.original_fitness.get_or_insert(sum);
-                (sum, sum, grid)
+                (sum, sum, layout, grid)
             },
             Some(x) => {
-                (x, sum, grid)
+                (x, sum, layout, grid)
             }
         }
     }

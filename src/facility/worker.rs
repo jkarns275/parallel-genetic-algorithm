@@ -19,28 +19,29 @@ use std::thread;
 use std::sync::atomic::Ordering;
 use constants::*;
 
-pub struct Fitness {
+pub struct Fitness<T> {
     pub sum: f64,
     pub grid: Vec<f64>,
     pub id: usize,
     pub original: f64,
+    pub layout: Vec<T>
 }
 
-impl Debug for Fitness {
+impl<T> Debug for Fitness<T> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(f, "(id: {}, f: {:.2}, o: {:.2})", self.id, self.sum, self.original)
     }
 }
 
-impl Display for Fitness {
+impl<T> Display for Fitness<T> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(f, "(id: {}, sum: {})", self.id, self.sum)
     }
 }
 
-impl Eq for Fitness {}
+impl<T> Eq for Fitness<T> {}
 
-impl PartialEq for Fitness {
+impl<T> PartialEq for Fitness<T> {
     fn eq(&self, other: &Self) -> bool {
         self.sum == other.sum
     }
@@ -50,13 +51,13 @@ impl PartialEq for Fitness {
     }
 }
 
-impl PartialOrd for Fitness {
+impl<T> PartialOrd for Fitness<T> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         self.sum.partial_cmp(&other.sum)
     }
 }
 
-impl Ord for Fitness {
+impl<T> Ord for Fitness<T> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         match self.partial_cmp(other) {
             Some(r) => r,
@@ -79,7 +80,7 @@ pub struct FacilityWorker<T, R>
 
     /// A shared container for the fitness to be sent through by the worker thread after an
     /// iteration.
-    fitness_receiver: Arc<Mutex<Option<Fitness>>>,
+    fitness_receiver: Arc<Mutex<Option<Fitness<T>>>>,
 
     /// Just a thread handle. Will be used to ensure the thread gets terminated gracefully.
     thread_handle: Option<JoinHandle<()>>,
@@ -91,7 +92,7 @@ pub struct FacilityWorker<T, R>
 struct Worker<T, R>
     where T: 'static + Affinity + Clone + Send + Sync,
           R: 'static + Rng + SeedableRng + Send + Sync {
-    fitness_receiver:   Arc<Mutex<Option<Fitness>>>,
+    fitness_receiver:   Arc<Mutex<Option<Fitness<T>>>>,
     facility:           Arc<RwLock<Facility<T, R>>>,
     should_terminate:   Arc<AtomicBool>,
     tick_barrier:       Arc<Barrier>,
@@ -105,11 +106,11 @@ impl<T, R> Worker<T, R>
 
     pub fn calculate_and_send_fitness(&mut self) {
         if let Ok(mut f) = self.facility.try_write() {
-            let (original, sum, grid) = f.fitness();
+            let (original, sum, layout, grid) = f.fitness();
             if let Ok(mut fitness_recv) = self.fitness_receiver.try_lock() {
                 assert!(fitness_recv.take().is_none());
                 let _ = fitness_recv
-                        .get_or_insert(Fitness { sum, original, grid, id: self.id, });
+                        .get_or_insert(Fitness { sum, original, grid, layout, id: self.id, });
             } else {
                 println!("Failed to obtain fitness receiver mutex in thread {}", self.id);
             }
@@ -225,7 +226,7 @@ impl<T, R> FacilityWorker<T, R>
         }
     }
 
-    pub fn get_fitness(&mut self) -> Fitness {
+    pub fn get_fitness(&mut self) -> Fitness<T> {
         if let Ok(mut t) = self.fitness_receiver.lock() {
             t.take().unwrap()
         } else {

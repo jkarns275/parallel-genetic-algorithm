@@ -1,6 +1,6 @@
 use rand::Rng;
 
-pub trait Affinity {
+pub trait Affinity where Self: Sized {
     fn empty() -> Self;
     fn aff_impl(&self, other: &Self) -> f64;
     fn is_empty(&self) -> bool;
@@ -10,6 +10,11 @@ pub trait Affinity {
         } else {
             f64::abs(self.aff_impl(other))
         }
+    }
+    fn zero() -> Self;
+    fn magnitude(&self) -> f64 {
+        let zero = Self::zero();
+        self.affinity(&zero)
     }
     fn max() -> f64;
     fn gen<R: Rng>(rng: &mut R) -> Self;
@@ -21,6 +26,8 @@ impl Affinity for f64 {
     fn aff_impl(&self, other: &Self) -> f64 { self - other }
 
     fn is_empty(&self) -> bool { *self < 0.0 }
+
+    fn zero() -> Self { 0.0 }
 
     fn max() -> f64 { 1.0 }
 
@@ -40,6 +47,8 @@ impl Affinity for (f64, f64) {
 
     fn is_empty(&self) -> bool { self.0.is_empty() }
 
+    fn zero() -> Self { (0.0, 0.0) }
+
     fn max() -> f64 { 2.0f64.sqrt() }
 
     fn gen<R: Rng>(rng: &mut R) -> Self { rng.gen() }
@@ -56,6 +65,8 @@ impl Affinity for (f64, f64, f64) {
     }
 
     fn is_empty(&self) -> bool { self.0.is_empty() }
+
+    fn zero() -> Self { (0.0, 0.0, 0.0) }
 
     fn max() -> f64 { 3.0f64.sqrt() }
 
@@ -75,6 +86,8 @@ impl Affinity for (f64, f64, f64, f64) {
 
     fn is_empty(&self) -> bool { self.0.is_empty() }
 
+    fn zero() -> Self { (0.0, 0.0, 0.0, 0.0) }
+
     fn max() -> f64 { 4.0f64.sqrt() }
 
     fn gen<R: Rng>(rng: &mut R) -> Self { rng.gen() }
@@ -88,6 +101,7 @@ impl Affinity for i32 {
     fn is_empty(&self) -> bool { *self < 0 }
 
     fn max() -> f64 { 1.0 }
+    fn zero() -> Self { 0 }
 
     fn gen<R: Rng>(rng: &mut R) -> Self {
         match rng.gen::<u8>() & 7 {
