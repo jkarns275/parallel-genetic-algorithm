@@ -38,8 +38,16 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
 
         let seed = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_nanos();
         let mut rng = XorShiftRng::from_seed(unsafe { transmute::<u128, [u8; 16]>(seed) });
+        let mut removed_cells = Vec::<usize>::with_capacity(N_EMPTY_CELLS);
         for i in 0..N_EMPTY_CELLS {
-            data[rng.gen::<usize>() % (N_COLS * N_ROWS)] = T::empty();
+            let mut index = 0;
+            loop {
+                index = rng.gen::<usize>() % (N_COLS * N_ROWS);
+                if removed_cells.contains(&index) { continue }
+                removed_cells.push(index);
+                break;
+            }
+            data[index] = T::empty();
         }
 
         let data = Arc::new(data);
