@@ -41,10 +41,13 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         let circle = CircleWeightGen {
             inner_radius: 20.5,
             outer_radius: 24.0,
-            position: ((N_ROWS / 2) as f64, (N_COLS / 2) as f64),
+            position: ((N_COLS / 2) as f64, (N_ROWS / 2) as f64),
             internal_weight: 2.0,
-            external_weight: 0.4
+            external_weight: 0.4,
+            scalex: 1.0,
+            scaley: 2.0,
         };
+
         let seed = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_nanos();
         let mut rng = XorShiftRng::from_seed(unsafe { transmute::<u128, [u8; 16]>(seed) });
         let mut removed_cells = Vec::<usize>::with_capacity(N_EMPTY_CELLS);
@@ -88,18 +91,19 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         window.nodelay(true);
 
         start_color();
-
-        init_pair(0, COLOR_CYAN,    COLOR_BLACK);
+        use_default_colors();        
+        init_pair(0, COLOR_CYAN,    -1);
         init_pair(1, COLOR_RED,     COLOR_RED);
         init_pair(2, COLOR_YELLOW,  COLOR_YELLOW);
         init_pair(3, COLOR_MAGENTA, COLOR_MAGENTA);
         init_pair(4, COLOR_CYAN,    COLOR_CYAN);
         init_pair(5, COLOR_GREEN,   COLOR_GREEN);
-
+        
         window
     }
 
     pub fn update_display(&mut self, max_fitness: Fitness<T>, affine_max: f64) {
+        self.window.clear();
         fn indexof(col: usize, row: usize) -> usize { col * N_ROWS + row }
 
         let aff_to_chclr = |aff: f64| -> (char, i16) {

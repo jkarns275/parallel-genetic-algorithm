@@ -188,7 +188,6 @@ impl<T, R, W> FacilityWorker<T, R, W>
         let seed128 = now.elapsed().unwrap().as_nanos() >> id as u128;
         let mut seed = <R as SeedableRng>::Seed::default();
         {
-            println!("{}", seed128);
             use std::mem::transmute;
             let actual_seed_bytes = seed.as_mut() ;
             let len = actual_seed_bytes.len();
