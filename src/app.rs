@@ -30,7 +30,7 @@ pub struct App<T, R> where T: 'static + Affinity + Clone + Send + Sync,
 impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
                             R: Rng + SeedableRng + Send + Sync {
 
-    const MS_PER_ITER_UPDATE_FREQ: usize = 256;
+    const MS_PER_ITER_UPDATE_FREQ: usize = 4;
 
     pub fn new() -> Self {
         let window = App::<T, R>::init_window();
@@ -39,8 +39,8 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         let mut data = Facility::<T, XorShiftRng, CircleWeightGen>::gen_random_data(N_COLS, N_ROWS, rng);
 
         let circle = CircleWeightGen {
-            inner_radius: 20.5,
-            outer_radius: 24.0,
+            inner_radius: 10.5,
+            outer_radius: 14.0,
             position: ((N_COLS / 2) as f64, (N_ROWS / 2) as f64),
             internal_weight: 2.0,
             external_weight: 0.4,
