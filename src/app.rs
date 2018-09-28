@@ -15,10 +15,12 @@ use pancurses::{self, *};
 const CHARSET: [char; 6] = ['-', '~', '#', '$', '!', '█'];
 const COLORS: [i16; 6] = [0, 1, 2, 3, 4, 5];
 
+
+
 pub struct App<T, R> where T: 'static + Affinity + Clone + Send + Sync,
                        R: 'static + Rng + SeedableRng + Send + Sync {
     rng:        XorShiftRng,
-    workers:    Vec<FacilityWorker<T, R>>,
+    workers:    Vec<FacilityWorker<T, R, PerlinWeightGen>>,
     barrier:    Arc<Barrier>,
     count_recv: Receiver<()>,
     window:     Window,
@@ -34,13 +36,21 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         let window = App::<T, R>::init_window();
         let seed = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_nanos();
         let rng = XorShiftRng::from_seed(unsafe { transmute::<u128, [u8; 16]>(seed) });
-        let mut data = Facility::<T, XorShiftRng>::gen_random_data(N_COLS, N_ROWS, rng);
+        let mut data = Facility::<T, XorShiftRng, PerlinWeightGen>::gen_random_data(N_COLS, N_ROWS, rng);
 
+        let circle = PerlinWeightGen::new(1.0, 1.0);
+        /*{
+            inner_radius: 5.5,
+            outer_radius: 6.0,
+            position: ((N_ROWS / 2) as f64, (N_COLS / 2) as f64),
+            internal_weight: 2.0,
+            external_weight: 0.0
+        };*/
         let seed = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_nanos();
         let mut rng = XorShiftRng::from_seed(unsafe { transmute::<u128, [u8; 16]>(seed) });
         let mut removed_cells = Vec::<usize>::with_capacity(N_EMPTY_CELLS);
-        for i in 0..N_EMPTY_CELLS {
-            let mut index = 0;
+        for _i in 0..N_EMPTY_CELLS {
+            let mut index;
             loop {
                 index = rng.gen::<usize>() % (N_COLS * N_ROWS);
                 if removed_cells.contains(&index) { continue }
@@ -54,8 +64,8 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         let (count_send, count_recv) = channel::<()>();
         let barrier = Arc::new(Barrier::new(N_THREADS + 1));
         let workers = (0..N_THREADS).map(|id| {
-            FacilityWorker::<T, R>::new( id, barrier.clone(), count_send.clone(), N_COLS,
-                                         N_ROWS, data.clone())
+            FacilityWorker::<T, R, PerlinWeightGen>::new( id, barrier.clone(), count_send.clone(), N_COLS,
+                                         N_ROWS, data.clone(), circle.clone())
         }).collect::<Vec<_>>();
         let rng = XorShiftRng::from_seed(unsafe { transmute::<u128, [u8; 16]>(seed) });
         let ms_per_iter: f64 = 0.0;
@@ -225,8 +235,7 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
             }
 
             let max_fitness = fitnesses.pop().unwrap();
-            self.update_display(max_fitness, affine_max);
-
+            if i % UPDATE_FREQUENCY == 0 { self.update_display(max_fitness, affine_max); }
             if self.should_exit() {
                 end = true
             }

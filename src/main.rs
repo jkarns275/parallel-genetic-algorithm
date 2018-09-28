@@ -2,7 +2,7 @@
 #![feature(int_to_from_bytes)]
 #![feature(try_from)]
 
-
+extern crate noise;
 extern crate rand;
 extern crate core;
 extern crate pancurses;

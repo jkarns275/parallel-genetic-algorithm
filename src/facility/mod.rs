@@ -1,7 +1,9 @@
 mod chromosome;
 mod affinity;
 mod worker;
+mod weight;
 
+pub use facility::weight::*;
 pub use facility::worker::*;
 pub use facility::affinity::*;
 
@@ -13,29 +15,37 @@ use constants::MUTATION_COEFFICIENT;
 use core::cmp;
 
 #[derive(Clone)]
-pub struct Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
+pub struct Facility<T, R, W>
+    where T: Affinity + Clone + Send + Sync,
+          R: Rng,
+          W: WeightGen {
     nrows: usize,
     ncols: usize,
     data: Arc<Vec<T>>,
     temp_data: Option<Vec<T>>,
     dna: Vec<Chromosome<u64>>,
-    pub parents: Option<(Arc<RwLock<Facility<T, R>>>, Arc<RwLock<Facility<T, R>>>)>,
+    pub parents: Option<(Arc<RwLock<Facility<T, R, W>>>, Arc<RwLock<Facility<T, R, W>>>)>,
     rng: R,
     id: usize,
     original_fitness: Option<f64>,
+    weight_gen: W,
 }
 
-impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
-    pub fn new(id: usize, ncols: usize, nrows: usize, data: Arc<Vec<T>>, rng: R) -> Self {
+impl<T, R, W> Facility<T, R, W>
+    where T: Affinity + Clone + Send + Sync,
+          R: Rng,
+          W: WeightGen {
+    pub fn new(id: usize, ncols: usize, nrows: usize, data: Arc<Vec<T>>, rng: R, weight_gen: W) -> Self {
         Facility {
-            dna: vec![],
-            parents: None,
-            original_fitness: None,
             temp_data: Some((*data).clone()),
+            original_fitness: None,
+            parents: None,
+            dna: vec![],
+            weight_gen,
             ncols,
             nrows,
-            rng,
             data,
+            rng,
             id,
         }
     }
@@ -80,7 +90,7 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
     }
 
     /// Replace this facility with the child of itself and other using single point crossover.
-    pub fn breed_rand_single_point(&mut self, parenta: &Facility<T, R>, parentb: &Facility<T, R>) {
+    pub fn breed_rand_single_point(&mut self, parenta: &Facility<T, R, W>, parentb: &Facility<T, R, W>) {
         debug_assert_eq!(parenta.dna.len(), self.dna.len());
         debug_assert_eq!(parentb.dna.len(), self.dna.len());
 
@@ -99,7 +109,7 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
         }
     }
 
-    pub fn breed_middle_single_point(&mut self, parenta: &Facility<T, R>, parentb: &Facility<T, R>) {
+    pub fn breed_middle_single_point(&mut self, parenta: &Facility<T, R, W>, parentb: &Facility<T, R, W>) {
         debug_assert_eq!(parenta.dna.len(), self.dna.len());
         debug_assert_eq!(parentb.dna.len(), self.dna.len());
 
@@ -118,16 +128,21 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
             ((c1 as isize - c2 as isize) as f64).abs() + ((r1 as isize - r2 as isize) as f64).abs()
         }
 
-        let cell = &data[col * self.nrows + row];
-        let mut sum = 0.0;
-        for r in 0..self.nrows {
-            for c in 0..self.ncols {
-                if c == col && r == row { continue }
-                let md = manhattan_distance(col, row, c, r);
-                sum += cell.affinity(&data[c * self.nrows + r]) / (md * md);
+        let weight = self.weight_gen.weight(col, row);
+        if weight > 0.0 {
+            let cell = &data[col * self.nrows + row];
+            let mut sum = 0.0;
+            for r in 0..self.nrows {
+                for c in 0..self.ncols {
+                    if c == col && r == row { continue }
+                    let md = manhattan_distance(col, row, c, r);
+                    sum += cell.affinity(&data[c * self.nrows + r]) / (md * md);
+                }
             }
+            sum * weight
+        } else {
+            0.0
         }
-        sum
     }
 
     // Calculates the fitness and returns

@@ -18,6 +18,7 @@ use std::sync::Barrier;
 use std::thread;
 use std::sync::atomic::Ordering;
 use constants::*;
+use facility::weight::WeightGen;
 
 pub struct Fitness<T> {
     pub sum: f64,
@@ -67,12 +68,13 @@ impl<T> Ord for Fitness<T> {
 }
 
 #[allow(unused)]
-pub struct FacilityWorker<T, R>
+pub struct FacilityWorker<T, R, W>
     where T: 'static + Affinity + Clone + Send + Sync,
-          R: 'static + Rng + SeedableRng + Send + Sync {
+          R: 'static + Rng + SeedableRng + Send + Sync,
+          W: 'static + WeightGen + Send + Sync {
     /// A shared mutex for the facility. This will be read from and written during the breeding
     /// process (which is performed by the main thread).
-    pub facility: Arc<RwLock<Facility<T, R>>>,
+    pub facility: Arc<RwLock<Facility<T, R, W>>>,
 
     /// A boolean flag that, when set to true, will eventually be read by the worker thread - the
     /// worker thread will then terminate.
@@ -89,20 +91,22 @@ pub struct FacilityWorker<T, R>
     id: usize
 }
 
-struct Worker<T, R>
+struct Worker<T, R, W>
     where T: 'static + Affinity + Clone + Send + Sync,
-          R: 'static + Rng + SeedableRng + Send + Sync {
+          R: 'static + Rng + SeedableRng + Send + Sync,
+          W: 'static + WeightGen + Send + Sync {
     fitness_receiver:   Arc<Mutex<Option<Fitness<T>>>>,
-    facility:           Arc<RwLock<Facility<T, R>>>,
+    facility:           Arc<RwLock<Facility<T, R, W>>>,
     should_terminate:   Arc<AtomicBool>,
     tick_barrier:       Arc<Barrier>,
     done_sender:        Sender<()>,
     id: usize,
 }
 
-impl<T, R> Worker<T, R>
+impl<T, R, W> Worker<T, R, W>
     where T: 'static + Affinity + Clone + Send + Sync,
-          R: 'static + Rng + SeedableRng + Send + Sync {
+          R: 'static + Rng + SeedableRng + Send + Sync,
+          W: 'static + WeightGen + Send + Sync {
 
     pub fn calculate_and_send_fitness(&mut self) {
         if let Ok(mut f) = self.facility.try_write() {
@@ -172,12 +176,13 @@ impl<T, R> Worker<T, R>
 }
 
 
-impl<T, R> FacilityWorker<T, R>
+impl<T, R, W> FacilityWorker<T, R, W>
     where T: 'static + Affinity + Clone + Send + Sync,
-          R: 'static + Rng + SeedableRng + Send + Sync {
+          R: 'static + Rng + SeedableRng + Send + Sync,
+          W: 'static  + WeightGen + Send + Sync {
 
     pub fn new(id: usize, tick_barrier: Arc<Barrier>, done_sender: Sender<()>,
-               ncols: usize, nrows: usize, data_base: Arc<Vec<T>>) -> Self {
+               ncols: usize, nrows: usize, data_base: Arc<Vec<T>>, weight_gen: W) -> Self {
 
         let now = SystemTime::UNIX_EPOCH;
         let seed128 = now.elapsed().unwrap().as_nanos() >> id as u128;
@@ -196,7 +201,7 @@ impl<T, R> FacilityWorker<T, R>
             }
         }
         let facility = Arc::new(RwLock::new(
-            Facility::new(id, ncols, nrows, data_base, R::from_seed(seed))));
+            Facility::new(id, ncols, nrows, data_base, R::from_seed(seed), weight_gen)));
         let should_terminate = Arc::new(AtomicBool::new(false));
         let fitness_receiver = Arc::new(Mutex::new(None));
 
