@@ -39,8 +39,8 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         let mut data = Facility::<T, XorShiftRng, CircleWeightGen>::gen_random_data(N_COLS, N_ROWS, rng);
 
         let circle = CircleWeightGen {
-            inner_radius: 3.5,
-            outer_radius: 6.0,
+            inner_radius: 20.5,
+            outer_radius: 24.0,
             position: ((N_ROWS / 2) as f64, (N_COLS / 2) as f64),
             internal_weight: 2.0,
             external_weight: 0.4
