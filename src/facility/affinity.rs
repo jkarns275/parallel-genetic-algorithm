@@ -5,7 +5,7 @@ pub trait Affinity where Self: Sized {
     fn aff_impl(&self, other: &Self) -> f64;
     fn is_empty(&self) -> bool;
     fn affinity(&self, other: &Self) -> f64 {
-        if self.is_empty() {
+        if self.is_empty() || other.is_empty() {
             0.0
         } else {
             f64::abs(self.aff_impl(other))

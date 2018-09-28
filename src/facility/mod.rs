@@ -124,7 +124,7 @@ impl<T, R> Facility<T, R> where T: Affinity + Clone + Send + Sync, R: Rng {
             for c in 0..self.ncols {
                 if c == col && r == row { continue }
                 let md = manhattan_distance(col, row, c, r);
-                sum += cell.affinity(&data[c * self.nrows + r]) / (md);
+                sum += cell.affinity(&data[c * self.nrows + r]) / (md * md);
             }
         }
         sum
