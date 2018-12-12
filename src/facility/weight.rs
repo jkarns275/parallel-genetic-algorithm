@@ -33,31 +33,3 @@ impl WeightGen for CircleWeightGen {
         }
     }
 }
-
-use noise::*;
-use std::time::UNIX_EPOCH;
-
-#[derive(Copy, Clone)]
-pub struct PerlinWeightGen {
-    pub scalex: f64,
-    pub scaley: f64,
-    noise: OpenSimplex
-}
-
-impl PerlinWeightGen {
-    pub fn new(scalex: f64, scaley: f64) -> Self {
-        let seed = UNIX_EPOCH.elapsed().unwrap().as_nanos();
-        let mut noise = OpenSimplex::new().set_seed(seed as u32);
-        Self {
-            scalex,
-            scaley,
-            noise
-        }
-    }
-}
-
-impl WeightGen for PerlinWeightGen {
-    fn weight(&self, col: usize, row: usize) -> f64 {
-        self.noise.get([col as f64 * self.scalex, row as f64 * self.scaley])
-    }
-}

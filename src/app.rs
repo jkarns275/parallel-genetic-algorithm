@@ -258,7 +258,7 @@ impl<T, R> App<T, R> where  T: Affinity + Clone + Send + Sync,
         self.set_workers_to_terminate();
 
         // Sync B
-        self.barrier.wait();
+        // self.barrier.wait();
 
         self.join_worker_threads();
 
